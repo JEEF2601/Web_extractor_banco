@@ -11,7 +11,7 @@ from django.shortcuts import render
 API_URL = "https://bank-csv-extractor.jeefdata.com/"
 CSV_SESSION_KEY = "latest_csv"
 BANK_ENTITIES = [
-	{"name": "BBVA", "prefix": "/bbva"},
+	{"name": "BBVA", "prefix": "/bbva/procesar"},
 ]
 
 
@@ -37,7 +37,7 @@ def _build_multipart_body(files, field_name):
 
 
 def _request_csv_from_api(files, api_endpoint):
-	attempts = ["files", "file"]
+	attempts = ["archivo"]
 	last_exception = None
 
 	for field_name in attempts:
@@ -51,6 +51,7 @@ def _request_csv_from_api(files, api_endpoint):
 			headers={
 				"Content-Type": f"multipart/form-data; boundary={boundary}",
 				"Accept": "text/csv,*/*",
+				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
 			},
 			method="POST",
 		)
@@ -59,10 +60,20 @@ def _request_csv_from_api(files, api_endpoint):
 			with request.urlopen(req, timeout=180) as response:
 				return response.read()
 		except error.HTTPError as exc:
-			# Try the alternate form field name for APIs with a different contract.
+			response_body = exc.read().decode("utf-8", errors="replace")
+
+			print("========== API ERROR ==========")
+			print("STATUS:", exc.code)
+			print("REASON:", exc.reason)
+			print("URL:", api_endpoint)
+			print("HEADERS:", dict(exc.headers))
+			print("BODY:", response_body[:5000])
+			print("===============================")
+
 			if exc.code in (400, 404, 415, 422):
 				last_exception = exc
 				continue
+
 			raise
 		except error.URLError as exc:
 			raise RuntimeError("No se pudo conectar con la API de extracción.") from exc
