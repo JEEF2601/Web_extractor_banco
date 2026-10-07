@@ -1,153 +1,92 @@
 import csv
 import io
-import mimetypes
 import uuid
-from urllib import error, request
+from urllib import error, request as urlrequest
 
-from django.http import HttpResponse
+from django.http import JsonResponse
 from django.shortcuts import render
+from django.views.decorators.http import require_POST
 
-
-API_URL = "https://bank-csv-extractor.jeefdata.com/"
-CSV_SESSION_KEY = "latest_csv"
+API_URL = "https://bank-csv-extractor.jeefdata.com"
+FIELD_NAME = "archivo"
+MAX_PDF_BYTES = 20 * 1024 * 1024  # 20 MB
 BANK_ENTITIES = [
-	{"name": "BBVA", "prefix": "/bbva/procesar"},
+    {"name": "BBVA", "prefix": "/bbva/procesar"},
 ]
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36"
 
 
-def _build_multipart_body(files, field_name):
-	boundary = f"----DjangoBoundary{uuid.uuid4().hex}"
-	body = bytearray()
-
-	for uploaded in files:
-		content_type = uploaded.content_type or mimetypes.guess_type(uploaded.name)[0] or "application/pdf"
-		body.extend(f"--{boundary}\r\n".encode("utf-8"))
-		body.extend(
-			(
-				f'Content-Disposition: form-data; name="{field_name}"; '
-				f'filename="{uploaded.name}"\r\n'
-			).encode("utf-8")
-		)
-		body.extend(f"Content-Type: {content_type}\r\n\r\n".encode("utf-8"))
-		body.extend(uploaded.read())
-		body.extend(b"\r\n")
-
-	body.extend(f"--{boundary}--\r\n".encode("utf-8"))
-	return bytes(body), boundary
+def _multipart(name, filename, data):
+    boundary = f"----Django{uuid.uuid4().hex}"
+    safe_name = filename.replace('"', "'")
+    head = (
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="{FIELD_NAME}"; filename="{safe_name}"\r\n'
+        "Content-Type: application/pdf\r\n\r\n"
+    ).encode()
+    tail = f"\r\n--{boundary}--\r\n".encode()
+    return head + data + tail, boundary
 
 
-def _request_csv_from_api(files, api_endpoint):
-	attempts = ["archivo"]
-	last_exception = None
-
-	for field_name in attempts:
-		for uploaded in files:
-			uploaded.seek(0)
-
-		body, boundary = _build_multipart_body(files, field_name)
-		req = request.Request(
-			api_endpoint,
-			data=body,
-			headers={
-				"Content-Type": f"multipart/form-data; boundary={boundary}",
-				"Accept": "text/csv,*/*",
-				"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36",
-			},
-			method="POST",
-		)
-
-		try:
-			with request.urlopen(req, timeout=180) as response:
-				return response.read()
-		except error.HTTPError as exc:
-			response_body = exc.read().decode("utf-8", errors="replace")
-
-			print("========== API ERROR ==========")
-			print("STATUS:", exc.code)
-			print("REASON:", exc.reason)
-			print("URL:", api_endpoint)
-			print("HEADERS:", dict(exc.headers))
-			print("BODY:", response_body[:5000])
-			print("===============================")
-
-			if exc.code in (400, 404, 415, 422):
-				last_exception = exc
-				continue
-
-			raise
-		except error.URLError as exc:
-			raise RuntimeError("No se pudo conectar con la API de extracción.") from exc
-
-	if last_exception:
-		raise RuntimeError(f"La API rechazó la solicitud: {last_exception.code} {last_exception.reason}")
-
-	raise RuntimeError("No fue posible procesar la solicitud en la API.")
+def _call_api(endpoint, filename, data):
+    body, boundary = _multipart(FIELD_NAME, filename, data)
+    req = urlrequest.Request(
+        endpoint,
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Accept": "text/csv,*/*",
+            "User-Agent": USER_AGENT,
+        },
+    )
+    try:
+        with urlrequest.urlopen(req, timeout=180) as resp:
+            return resp.read()
+    except error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:300]
+        raise RuntimeError(f"La API respondió {exc.code} {exc.reason}. {detail}") from exc
+    except error.URLError as exc:
+        raise RuntimeError("No se pudo conectar con la API de extracción.") from exc
 
 
-def _decode_csv_bytes(csv_bytes):
-	for encoding in ("utf-8-sig", "utf-8", "latin-1"):
-		try:
-			return csv_bytes.decode(encoding)
-		except UnicodeDecodeError:
-			continue
-	return csv_bytes.decode("utf-8", errors="replace")
+def _decode(raw):
+    for enc in ("utf-8-sig", "utf-8", "latin-1"):
+        try:
+            return raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", errors="replace")
 
 
 def index(request):
-	default_prefix = BANK_ENTITIES[0]["prefix"]
-	context = {
-		"api_url": API_URL,
-		"bank_entities": BANK_ENTITIES,
-		"selected_bank_prefix": default_prefix,
-		"selected_api_endpoint": f"{API_URL.rstrip('/')}{default_prefix}",
-		"csv_headers": [],
-		"csv_rows": [],
-		"error_message": "",
-	}
-
-	if request.method == "POST":
-		selected_prefix = request.POST.get("bank_prefix", default_prefix)
-		allowed_prefixes = {entity["prefix"] for entity in BANK_ENTITIES}
-		if selected_prefix not in allowed_prefixes:
-			selected_prefix = default_prefix
-
-		api_endpoint = f"{API_URL.rstrip('/')}{selected_prefix}"
-		context["selected_bank_prefix"] = selected_prefix
-		context["selected_api_endpoint"] = api_endpoint
-
-		uploaded_files = request.FILES.getlist("pdf_files")
-		if not uploaded_files:
-			context["error_message"] = "Selecciona al menos un PDF para procesar."
-			return render(request, "web_ui/index.html", context)
-
-		for uploaded in uploaded_files:
-			if not uploaded.name.lower().endswith(".pdf"):
-				context["error_message"] = "Todos los archivos deben tener formato PDF."
-				return render(request, "web_ui/index.html", context)
-
-		try:
-			csv_bytes = _request_csv_from_api(uploaded_files, api_endpoint)
-			csv_text = _decode_csv_bytes(csv_bytes)
-		except Exception as exc:  # noqa: BLE001
-			context["error_message"] = f"Error al procesar la extracción: {exc}"
-			return render(request, "web_ui/index.html", context)
-
-		request.session[CSV_SESSION_KEY] = csv_text
-		rows = list(csv.reader(io.StringIO(csv_text)))
-		if rows:
-			context["csv_headers"] = rows[0]
-			context["csv_rows"] = rows[1:51]
-		else:
-			context["error_message"] = "La API respondió pero el CSV llegó vacío."
-
-	return render(request, "web_ui/index.html", context)
+    return render(request, "web_ui/index.html", {"bank_entities": BANK_ENTITIES})
 
 
-def download_csv(request):
-	csv_text = request.session.get(CSV_SESSION_KEY, "")
-	if not csv_text:
-		return HttpResponse("No hay CSV para descargar todavía.", status=404)
+@require_POST
+def process_pdf(request):
+    """Procesa UN pdf y devuelve {csv, rows} en JSON."""
+    prefix = request.POST.get("bank_prefix", "")
+    if prefix not in {e["prefix"] for e in BANK_ENTITIES}:
+        return JsonResponse({"error": "Entidad bancaria no válida."}, status=400)
 
-	response = HttpResponse(csv_text, content_type="text/csv; charset=utf-8")
-	response["Content-Disposition"] = 'attachment; filename="extract_result.csv"'
-	return response
+    pdf = request.FILES.get("pdf_file")
+    if not pdf:
+        return JsonResponse({"error": "No se recibió ningún archivo."}, status=400)
+    if pdf.size > MAX_PDF_BYTES:
+        return JsonResponse({"error": "El PDF supera los 20 MB."}, status=400)
+
+    data = pdf.read()
+    if not data.startswith(b"%PDF"):
+        return JsonResponse({"error": "El archivo no es un PDF válido."}, status=400)
+
+    try:
+        text = _decode(_call_api(f"{API_URL}{prefix}", pdf.name, data))
+    except RuntimeError as exc:
+        return JsonResponse({"error": str(exc)}, status=502)
+
+    rows = list(csv.reader(io.StringIO(text)))
+    if len(rows) < 2:
+        return JsonResponse({"error": "La API no devolvió transacciones para este PDF."}, status=422)
+
+    return JsonResponse({"csv": text, "rows": len(rows) - 1})

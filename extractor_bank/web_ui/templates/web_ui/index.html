@@ -1,268 +1,176 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extractor Banco PDF a CSV</title>
-    <style>
-        :root {
-            --bg: #f3efe6;
-            --panel: #fffdf9;
-            --ink: #1f2933;
-            --muted: #52606d;
-            --accent: #0f766e;
-            --accent-soft: #d9f3ef;
-            --line: #d3cfc7;
-            --error: #b42318;
-        }
-
-        * { box-sizing: border-box; }
-
-        body {
-            margin: 0;
-            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-            color: var(--ink);
-            background:
-                radial-gradient(circle at 20% 10%, #fff6e5 0%, transparent 40%),
-                radial-gradient(circle at 80% 90%, #d9f3ef 0%, transparent 35%),
-                var(--bg);
-            min-height: 100vh;
-        }
-
-        .wrapper {
-            width: min(1100px, 92vw);
-            margin: 2.5rem auto;
-            background: var(--panel);
-            border: 1px solid var(--line);
-            border-radius: 18px;
-            box-shadow: 0 18px 40px rgba(31, 41, 51, 0.08);
-            overflow: hidden;
-        }
-
-        .hero {
-            padding: 2rem 2rem 1rem;
-            border-bottom: 1px solid var(--line);
-            background: linear-gradient(120deg, #fdf7ed, #ecfdf5);
-        }
-
-        h1 {
-            margin: 0 0 0.5rem;
-            font-size: clamp(1.4rem, 2.5vw, 2.2rem);
-            letter-spacing: 0.02em;
-        }
-
-        .muted {
-            margin: 0;
-            color: var(--muted);
-            line-height: 1.5;
-        }
-
-        .content {
-            padding: 1.5rem 2rem 2rem;
-            display: grid;
-            gap: 1.4rem;
-        }
-
-        form {
-            display: grid;
-            gap: 0.9rem;
-            background: #fff;
-            border: 1px dashed var(--line);
-            border-radius: 14px;
-            padding: 1.1rem;
-        }
-
-        label {
-            font-weight: 600;
-            font-size: 0.95rem;
-        }
-
-        input[type="file"] {
-            width: 100%;
-            padding: 0.6rem;
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            background: #fff;
-        }
-
-        .entity-grid {
-            display: grid;
-            gap: 0.6rem;
-            margin-top: 0.1rem;
-        }
-
-        .entity-option {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.7rem;
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            padding: 0.65rem 0.75rem;
-            background: #fffcf6;
-        }
-
-        .entity-option label {
-            margin: 0;
-            font-weight: 700;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.55rem;
-            cursor: pointer;
-        }
-
-        .entity-prefix {
-            color: var(--muted);
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        .actions {
-            display: flex;
-            gap: 0.8rem;
-            flex-wrap: wrap;
-        }
-
-        button, .btn-link {
-            border: none;
-            border-radius: 10px;
-            padding: 0.65rem 1rem;
-            font-size: 0.95rem;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        button {
-            background: var(--accent);
-            color: #fff;
-        }
-
-        button:hover {
-            filter: brightness(1.05);
-        }
-
-        .btn-link {
-            background: var(--accent-soft);
-            color: #0f4f49;
-        }
-
-        .error {
-            color: var(--error);
-            background: #ffebe9;
-            border: 1px solid #fecdca;
-            border-radius: 10px;
-            padding: 0.75rem;
-        }
-
-        .table-wrap {
-            overflow-x: auto;
-            border: 1px solid var(--line);
-            border-radius: 12px;
-            background: #fff;
-        }
-
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            min-width: 680px;
-        }
-
-        th, td {
-            padding: 0.65rem 0.7rem;
-            border-bottom: 1px solid #ece8df;
-            text-align: left;
-            font-size: 0.9rem;
-            white-space: nowrap;
-        }
-
-        th {
-            background: #f9f6ef;
-            position: sticky;
-            top: 0;
-        }
-
-        .hint {
-            color: var(--muted);
-            font-size: 0.88rem;
-            margin: 0;
-        }
-
-        @media (max-width: 760px) {
-            .wrapper { margin: 1rem auto; }
-            .hero, .content { padding: 1rem; }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Extractor de Transacciones Bancarias</title>
+<style>
+:root{--bg:#fdf9ec;--ink:#1f2933;--muted:#6b7280;--line:#1f2933;--soft:#e5dfcc;--accent:#0f766e;--err:#b42318;--ok:#15803d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Tahoma,sans-serif}
+main{width:min(1000px,92vw);margin:2rem auto}
+h1{font-size:clamp(1.5rem,3vw,2.2rem);margin:0 0 1.5rem}
+label.t{display:block;font-weight:600;margin-bottom:.4rem}
+select{width:min(100%,460px);padding:.6rem .7rem;border:2px solid var(--line);border-radius:6px;background:#fff;font-size:1rem}
+.bar{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-top:1.8rem;padding-bottom:.8rem;border-bottom:2px solid var(--line)}
+.bar h2{margin:0;font-size:1.4rem}
+.btns{display:flex;gap:.6rem}
+button{font:inherit;cursor:pointer;border:2px solid var(--line);background:#fff;color:var(--ink);border-radius:6px;padding:.45rem .9rem;transition:.15s}
+button:hover:not(:disabled){background:var(--ink);color:#fff}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover:not(:disabled){filter:brightness(1.1);background:var(--accent)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.all{display:flex;justify-content:flex-end;padding:.8rem 0;border-bottom:2px solid var(--line)}
+#list{list-style:none;margin:0;padding:0}
+#drop{min-height:140px;transition:.15s}
+#drop.over{background:#f3ecd2}
+.empty{color:var(--muted);text-align:center;padding:2.5rem 0}
+.row{display:flex;align-items:center;gap:1rem;padding:.9rem .4rem;border-bottom:2px solid var(--line)}
+.name{flex:1;min-width:0}
+.name b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.status{font-size:.82rem;color:var(--muted)}
+.status.done{color:var(--ok)}.status.error{color:var(--err)}
+.dl{width:38px;height:38px;border-radius:50%;padding:0;display:grid;place-items:center;font-size:1.1rem}
+.rm{border:none;background:none;color:var(--muted);padding:.2rem .4rem;font-size:1.1rem}
+.rm:hover:not(:disabled){background:none;color:var(--err)}
+.spin{display:inline-block;width:.8em;height:.8em;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:s .7s linear infinite;vertical-align:-1px;margin-right:.3rem}
+@keyframes s{to{transform:rotate(360deg)}}
+@media(max-width:620px){.row{flex-wrap:wrap}.name{flex-basis:100%}}
+</style>
 </head>
 <body>
-    <main class="wrapper">
-        <section class="hero">
-            <h1>Extractor de Tablas Bancarias (PDF → CSV)</h1>
-            <p class="muted">
-                Sube uno o varios PDFs, se enviarán a la API
-                <strong>{{ api_url }}</strong> y se mostrará una vista previa del CSV devuelto.
-            </p>
-        </section>
+<main>
+  <h1>Extractor de Transacciones Bancarias</h1>
+  {% csrf_token %}
 
-        <section class="content">
-            <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-                <label>Entidad bancaria</label>
-                <div class="entity-grid">
-                    {% for entity in bank_entities %}
-                        <div class="entity-option">
-                            <label>
-                                <input
-                                    type="radio"
-                                    name="bank_prefix"
-                                    value="{{ entity.prefix }}"
-                                    {% if entity.prefix == selected_bank_prefix %}checked{% endif %}
-                                >
-                                {{ entity.name }}
-                            </label>
-                            <span class="entity-prefix">{{ entity.prefix }}</span>
-                        </div>
-                    {% endfor %}
-                </div>
-                <label for="pdf_files">Selecciona tus PDFs</label>
-                <input id="pdf_files" type="file" name="pdf_files" accept="application/pdf,.pdf" multiple required>
-                <div class="actions">
-                    <button type="submit">Procesar Archivos</button>
-                    <a class="btn-link" href="{% url 'download_csv' %}">Descargar ultimo CSV</a>
-                </div>
-                <p class="hint">Endpoint seleccionado: {{ selected_api_endpoint }}</p>
-                <p class="hint">Vista previa limitada a 50 filas para no saturar la interfaz.</p>
-            </form>
+  <label class="t" for="bank">Entidad bancaria</label>
+  <select id="bank">
+    {% for e in bank_entities %}<option value="{{ e.prefix }}">{{ e.name }}</option>{% endfor %}
+  </select>
 
-            {% if error_message %}
-                <div class="error">{{ error_message }}</div>
-            {% endif %}
+  <div class="bar">
+    <h2>Seleccionar PDFs</h2>
+    <div class="btns">
+      <button id="add" type="button">Subir +</button>
+      <button id="runAll" type="button" class="primary" disabled>Procesar</button>
+    </div>
+    <input id="picker" type="file" accept="application/pdf,.pdf" multiple hidden>
+  </div>
 
-            {% if csv_headers %}
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                {% for h in csv_headers %}
-                                    <th>{{ h }}</th>
-                                {% endfor %}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in csv_rows %}
-                                <tr>
-                                    {% for value in row %}
-                                        <td>{{ value }}</td>
-                                    {% endfor %}
-                                </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            {% endif %}
-        </section>
-    </main>
+  <div class="all"><button id="dlAll" type="button" disabled>Descargar todos</button></div>
+
+  <div id="drop"><ul id="list"></ul></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
+const PROCESS_URL = "{% url 'process_pdf' %}";
+const MAX = 20 * 1024 * 1024;
+let items = [], nextId = 1, busy = false;
+
+function addFiles(fileList) {
+  for (const f of fileList) {
+    if (!f.name.toLowerCase().endsWith('.pdf')) continue;
+    if (items.some(i => i.file.name === f.name && i.file.size === f.size)) continue;
+    const tooBig = f.size > MAX;
+    items.push({id: nextId++, file: f, state: tooBig ? 'error' : 'pending',
+                msg: tooBig ? 'Supera los 20 MB' : '', csv: '', rows: 0});
+  }
+  render();
+}
+
+function el(tag, props = {}, ...kids) {
+  const n = Object.assign(document.createElement(tag), props);
+  kids.forEach(k => n.append(k));
+  return n;
+}
+
+function download(name, text) {
+  const url = URL.createObjectURL(new Blob(['\ufeff' + text], {type: 'text/csv;charset=utf-8'}));
+  const a = el('a', {href: url, download: name});
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+const csvName = f => f.name.replace(/\.pdf$/i, '') + '.csv';
+
+async function processItem(it) {
+  it.state = 'loading'; it.msg = ''; render();
+  const fd = new FormData();
+  fd.append('bank_prefix', $('bank').value);
+  fd.append('pdf_file', it.file);
+  try {
+    const r = await fetch(PROCESS_URL, {method: 'POST', body: fd, headers: {'X-CSRFToken': csrf}});
+    const data = await r.json().catch(() => ({error: 'Respuesta inválida del servidor.'}));
+    if (!r.ok) throw new Error(data.error || 'Error desconocido');
+    Object.assign(it, {state: 'done', csv: data.csv, rows: data.rows});
+  } catch (e) {
+    Object.assign(it, {state: 'error', msg: e.message});
+  }
+  render();
+}
+
+async function runAll() {
+  busy = true; render();
+  const queue = items.filter(i => i.state === 'pending' || (i.state === 'error' && i.file.size <= MAX));
+  const worker = async () => { while (queue.length) await processItem(queue.shift()); };
+  await Promise.all([worker(), worker()]); // 2 PDFs en paralelo
+  busy = false; render();
+}
+
+function downloadAll() {
+  const done = items.filter(i => i.state === 'done');
+  if (!done.length) return;
+  let out = done[0].csv.trimEnd();
+  for (const it of done.slice(1)) {
+    const body = it.csv.slice(it.csv.indexOf('\n') + 1).trimEnd(); // sin encabezado
+    if (body) out += '\n' + body;
+  }
+  download('transacciones_todos.csv', out + '\n');
+}
+
+function render() {
+  const list = $('list');
+  list.replaceChildren();
+  if (!items.length) {
+    list.append(el('li', {className: 'empty', textContent: 'Sube o arrastra aquí tus PDFs.'}));
+  }
+  for (const it of items) {
+    const label = {pending: 'Pendiente', loading: 'Procesando…', done: `Listo · ${it.rows} transacciones`,
+                   error: it.msg}[it.state];
+    const status = el('span', {className: 'status ' + it.state});
+    if (it.state === 'loading') status.append(el('span', {className: 'spin'}));
+    status.append(label);
+
+    const run = el('button', {textContent: it.state === 'done' ? 'Reprocesar' : 'Procesar',
+                              disabled: it.state === 'loading' || busy || it.file.size > MAX,
+                              onclick: () => processItem(it)});
+    const dl = el('button', {className: 'dl', title: 'Descargar CSV', textContent: '⬇',
+                             disabled: it.state !== 'done', onclick: () => download(csvName(it.file), it.csv)});
+    const rm = el('button', {className: 'rm', title: 'Quitar', textContent: '✕',
+                             disabled: it.state === 'loading',
+                             onclick: () => { items = items.filter(x => x !== it); render(); }});
+    list.append(el('li', {className: 'row'},
+      el('div', {className: 'name'}, el('b', {textContent: it.file.name, title: it.file.name}), status),
+      run, dl, rm));
+  }
+  const pending = items.some(i => i.state === 'pending' || (i.state === 'error' && i.file.size <= MAX));
+  $('runAll').disabled = busy || !pending;
+  $('dlAll').disabled = !items.some(i => i.state === 'done');
+}
+
+$('add').onclick = () => $('picker').click();
+$('picker').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
+$('runAll').onclick = runAll;
+$('dlAll').onclick = downloadAll;
+$('bank').onchange = () => items.forEach(i => { if (i.state === 'done') { i.state = 'pending'; i.csv = ''; } }) || render();
+
+const drop = $('drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+
+render();
+</script>
 </body>
 </html>
