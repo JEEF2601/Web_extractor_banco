@@ -1,0 +1,15 @@
+
+services:
+  extractor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: extractor
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - sqlite_data:/app/db.sqlite3
+
+volumes:
+  sqlite_data:
