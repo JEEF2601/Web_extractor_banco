@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Extractor de Transacciones Bancarias</title>
+<title>Renombrar PDFs</title>
 <style>
-:root{--bg:#fdf9ec;--ink:#1f2933;--muted:#6b7280;--line:#1f2933;--soft:#e5dfcc;--accent:#0f766e;--err:#b42318;--ok:#15803d}
+:root{--bg:#fdf9ec;--ink:#1f2933;--muted:#6b7280;--line:#1f2933;--accent:#0f766e;--err:#b42318;--ok:#15803d}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Tahoma,sans-serif}
 main{width:min(1000px,92vw);margin:2rem auto}
-.nav{display:flex;justify-content:flex-end;margin-bottom:.5rem}
+.nav{display:flex;justify-content:flex-start;margin-bottom:.5rem}
 .nav a{color:var(--accent);font-weight:600;text-decoration:none;border:2px solid var(--accent);border-radius:6px;padding:.35rem .8rem}
 .nav a:hover{background:var(--accent);color:#fff}
 h1{font-size:clamp(1.5rem,3vw,2.2rem);margin:0 0 1.5rem}
@@ -31,6 +31,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
 .row{display:flex;align-items:center;gap:1rem;padding:.9rem .4rem;border-bottom:2px solid var(--line)}
 .name{flex:1;min-width:0}
 .name b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.name input{width:100%;margin-top:.35rem;padding:.4rem .55rem;border:2px solid var(--accent);border-radius:6px;font:inherit;font-size:.92rem;background:#fff}
 .status{font-size:.82rem;color:var(--muted)}
 .status.done{color:var(--ok)}.status.error{color:var(--err)}
 .dl{width:38px;height:38px;border-radius:50%;padding:0;display:grid;place-items:center;font-size:1.1rem}
@@ -43,8 +44,8 @@ button:disabled{opacity:.4;cursor:not-allowed}
 </head>
 <body>
 <main>
-  <nav class="nav"><a href="{% url 'rename_page' %}">Renombrar archivos →</a></nav>
-  <h1>Extractor de Transacciones Bancarias</h1>
+  <nav class="nav"><a href="{% url 'index' %}">← Extractor de transacciones</a></nav>
+  <h1>Renombrar PDFs</h1>
   {% csrf_token %}
 
   <label class="t" for="bank">Entidad bancaria</label>
@@ -56,30 +57,36 @@ button:disabled{opacity:.4;cursor:not-allowed}
     <h2>Seleccionar PDFs</h2>
     <div class="btns">
       <button id="add" type="button">Subir +</button>
-      <button id="runAll" type="button" class="primary" disabled>Procesar</button>
+      <button id="runAll" type="button" class="primary" disabled>Renombrar</button>
     </div>
     <input id="picker" type="file" accept="application/pdf,.pdf" multiple hidden>
   </div>
 
-  <div class="all"><button id="dlAll" type="button" disabled>Descargar todos</button></div>
+  <div class="all"><button id="dlAll" type="button" disabled>Descargar todos (.zip)</button></div>
 
   <div id="drop"><ul id="list"></ul></div>
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
-const PROCESS_URL = "{% url 'process_pdf' %}";
+const RENAME_URL = "{% url 'rename_pdf' %}";
 const MAX = 20 * 1024 * 1024;
 let items = [], nextId = 1, busy = false;
+
+const cleanName = n => {
+  n = n.replace(/[\\/:*?"<>|]+/g, '-').trim();
+  return /\.pdf$/i.test(n) ? n : n + '.pdf';
+};
 
 function addFiles(fileList) {
   for (const f of fileList) {
     if (!f.name.toLowerCase().endsWith('.pdf')) continue;
     if (items.some(i => i.file.name === f.name && i.file.size === f.size)) continue;
-    const tooBig = f.size > MAX;
-    items.push({id: nextId++, file: f, state: tooBig ? 'error' : 'pending',
-                msg: tooBig ? 'Supera los 20 MB' : '', csv: '', rows: 0});
+    const big = f.size > MAX;
+    items.push({id: nextId++, file: f, state: big ? 'error' : 'pending',
+                msg: big ? 'Supera los 20 MB' : '', newName: ''});
   }
   render();
 }
@@ -90,24 +97,23 @@ function el(tag, props = {}, ...kids) {
   return n;
 }
 
-function download(name, text) {
-  const url = URL.createObjectURL(new Blob(['\ufeff' + text], {type: 'text/csv;charset=utf-8'}));
+function save(blob, name) {
+  const url = URL.createObjectURL(blob);
   const a = el('a', {href: url, download: name});
   document.body.append(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-const csvName = f => f.name.replace(/\.pdf$/i, '') + '.csv';
 
-async function processItem(it) {
+async function renameItem(it) {
   it.state = 'loading'; it.msg = ''; render();
   const fd = new FormData();
   fd.append('bank', $('bank').value);
   fd.append('pdf_file', it.file);
   try {
-    const r = await fetch(PROCESS_URL, {method: 'POST', body: fd, headers: {'X-CSRFToken': csrf}});
+    const r = await fetch(RENAME_URL, {method: 'POST', body: fd, headers: {'X-CSRFToken': csrf}});
     const data = await r.json().catch(() => ({error: 'Respuesta inválida del servidor.'}));
     if (!r.ok) throw new Error(data.error || 'Error desconocido');
-    Object.assign(it, {state: 'done', csv: data.csv, rows: data.rows});
+    Object.assign(it, {state: 'done', newName: cleanName(data.resultado)});
   } catch (e) {
     Object.assign(it, {state: 'error', msg: e.message});
   }
@@ -117,46 +123,52 @@ async function processItem(it) {
 async function runAll() {
   busy = true; render();
   const queue = items.filter(i => i.state === 'pending' || (i.state === 'error' && i.file.size <= MAX));
-  const worker = async () => { while (queue.length) await processItem(queue.shift()); };
-  await Promise.all([worker(), worker()]); // 2 PDFs en paralelo
+  const worker = async () => { while (queue.length) await renameItem(queue.shift()); };
+  await Promise.all([worker(), worker()]);
   busy = false; render();
 }
 
-function downloadAll() {
+async function downloadAll() {
   const done = items.filter(i => i.state === 'done');
   if (!done.length) return;
-  let out = done[0].csv.trimEnd();
-  for (const it of done.slice(1)) {
-    const body = it.csv.slice(it.csv.indexOf('\n') + 1).trimEnd(); // sin encabezado
-    if (body) out += '\n' + body;
+  if (typeof JSZip === 'undefined') { alert('No se pudo cargar JSZip. Descarga los archivos uno por uno.'); return; }
+  const zip = new JSZip(), used = new Set();
+  for (const it of done) {
+    let name = cleanName(it.newName), n = 2;
+    while (used.has(name.toLowerCase())) name = cleanName(it.newName).replace(/\.pdf$/i, ` (${n++}).pdf`);
+    used.add(name.toLowerCase());
+    zip.file(name, it.file);
   }
-  download('transacciones_todos.csv', out + '\n');
+  save(await zip.generateAsync({type: 'blob'}), 'pdfs_renombrados.zip');
 }
 
 function render() {
   const list = $('list');
   list.replaceChildren();
-  if (!items.length) {
-    list.append(el('li', {className: 'empty', textContent: 'Sube o arrastra aquí tus PDFs.'}));
-  }
+  if (!items.length) list.append(el('li', {className: 'empty', textContent: 'Sube o arrastra aquí tus PDFs.'}));
+
   for (const it of items) {
-    const label = {pending: 'Pendiente', loading: 'Procesando…', done: `Listo · ${it.rows} transacciones`,
+    const label = {pending: 'Pendiente', loading: 'Obteniendo nombre…', done: 'Nuevo nombre (editable):',
                    error: it.msg}[it.state];
     const status = el('span', {className: 'status ' + it.state});
     if (it.state === 'loading') status.append(el('span', {className: 'spin'}));
     status.append(label);
 
-    const run = el('button', {textContent: it.state === 'done' ? 'Reprocesar' : 'Procesar',
+    const name = el('div', {className: 'name'}, el('b', {textContent: it.file.name, title: it.file.name}), status);
+    if (it.state === 'done') {
+      name.append(el('input', {type: 'text', value: it.newName, oninput: e => { it.newName = e.target.value; }}));
+    }
+
+    const run = el('button', {textContent: it.state === 'done' ? 'Reintentar' : 'Renombrar',
                               disabled: it.state === 'loading' || busy || it.file.size > MAX,
-                              onclick: () => processItem(it)});
-    const dl = el('button', {className: 'dl', title: 'Descargar CSV', textContent: '⬇',
-                             disabled: it.state !== 'done', onclick: () => download(csvName(it.file), it.csv)});
+                              onclick: () => renameItem(it)});
+    const dl = el('button', {className: 'dl', title: 'Descargar renombrado', textContent: '⬇',
+                             disabled: it.state !== 'done',
+                             onclick: () => save(it.file, cleanName(it.newName))});
     const rm = el('button', {className: 'rm', title: 'Quitar', textContent: '✕',
                              disabled: it.state === 'loading',
                              onclick: () => { items = items.filter(x => x !== it); render(); }});
-    list.append(el('li', {className: 'row'},
-      el('div', {className: 'name'}, el('b', {textContent: it.file.name, title: it.file.name}), status),
-      run, dl, rm));
+    list.append(el('li', {className: 'row'}, name, run, dl, rm));
   }
   const pending = items.some(i => i.state === 'pending' || (i.state === 'error' && i.file.size <= MAX));
   $('runAll').disabled = busy || !pending;
@@ -167,7 +179,6 @@ $('add').onclick = () => $('picker').click();
 $('picker').onchange = e => { addFiles(e.target.files); e.target.value = ''; };
 $('runAll').onclick = runAll;
 $('dlAll').onclick = downloadAll;
-$('bank').onchange = () => items.forEach(i => { if (i.state === 'done') { i.state = 'pending'; i.csv = ''; } }) || render();
 
 const drop = $('drop');
 ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
