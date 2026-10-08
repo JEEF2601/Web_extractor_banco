@@ -3,7 +3,7 @@ services:
   extractor:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
     container_name: extractor
     restart: unless-stopped
     ports:
