@@ -26,7 +26,13 @@ SECRET_KEY = 'django-insecure-&4cp4_5vv=478nq=virupkmp&bas*86_*e_r_@n(hb)sm*_b0r
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    "192.168.100.106"
+    , "localhost"
+    , "127.0.0.1"
+    ,
+    #Mypage
+    'ext.jeefdata.com']
 
 
 # Application definition
